@@ -8,6 +8,7 @@ import os, sys
 from argparse import ArgumentParser
 import datetime
 import logging
+import glob
 
 from defs import info, data_hdr, data, setup, SETUP_MAGIC, STARTCODE
 import printers
@@ -168,6 +169,16 @@ parser.add_argument('files', metavar='binfile', nargs='+',
 
 if __name__ == '__main__':
     args = parser.parse_args()
+
+    # Expand glob patterns in file arguments
+    expanded_files = []
+    for file_pattern in args.files:
+        matches = glob.glob(file_pattern)
+        if matches:
+            expanded_files.extend(sorted(matches))
+        else:
+            expanded_files.append(file_pattern)
+    args.files = expanded_files
 
     # Set log level on root
     args.verbose = min(args.verbose, len(verbosities) - 1)
