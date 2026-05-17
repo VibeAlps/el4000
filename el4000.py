@@ -9,11 +9,27 @@ from argparse import ArgumentParser
 import datetime
 import logging
 import glob
+from contextlib import contextmanager
 
 from defs import info, data_hdr, data, setup, SETUP_MAGIC, STARTCODE
 import printers
 
 _logger = logging.getLogger(__name__)
+
+@contextmanager
+def redirect_output(output_file):
+    if output_file:
+        os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
+        f = open(output_file, 'w')
+        old_stdout = sys.stdout
+        sys.stdout = f
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+            f.close()
+    else:
+        yield
 
 def process_setup(filename, printer, setup_args):
     # Original setup template, default to empty
@@ -161,6 +177,8 @@ parser.add_argument('-s', '--setup', metavar='key=value', nargs='*',
 parser.add_argument('-o', '--data-only', action='store_true',
                     help='Use info files only for updating the initial \
                     timestamp for data files, do not print their contents')
+parser.add_argument('--output', default='data/output/output.csv',
+                    help="Output file path (default: %(default)s)")
 parser.add_argument('files', metavar='binfile', nargs='+',
                     help='info or data files (.bin) from SD card. If --setup \
                     is given, then this is the output file (and input for \
@@ -194,17 +212,18 @@ if __name__ == '__main__':
     # Unknown date and time, initialize with something low.
     dt = [datetime.datetime(1970, 1, 1)]
 
-    for filename in args.files:
-        try:
-            printer = myprinter(filename, separator=args.delimiter)
-        except TypeError:
-            printer = myprinter(filename)
-        # Treat setup specially, it acts as input and output file
-        if args.setup is not None:
-            process_setup(args.files[0], myprinter, args.setup)
-        else:
-            # Display current filename for multiple files
-            if files_count > 1 and not args.data_only:
-                print('# ' + filename)
+    with redirect_output(args.output):
+        for filename in args.files:
+            try:
+                printer = myprinter(filename, separator=args.delimiter)
+            except TypeError:
+                printer = myprinter(filename)
+            # Treat setup specially, it acts as input and output file
+            if args.setup is not None:
+                process_setup(args.files[0], myprinter, args.setup)
+            else:
+                # Display current filename for multiple files
+                if files_count > 1 and not args.data_only:
+                    print('# ' + filename)
 
-            process_file(filename, printer, dt, args.data_only)
+                process_file(filename, printer, dt, args.data_only)
